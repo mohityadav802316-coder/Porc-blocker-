@@ -239,8 +239,12 @@ object AlwaysOnSecurityManager {
     visibleText: String
   ): TamperCheckResult {
     // If user has temporarily paused protection or 24-hr unlock window is open, allow access
-    if (ProtectionPauseManager.isPaused(context) || isTemporarilyUnlocked(context) || !isAlwaysOnEnabled(context)) {
-      return TamperCheckResult(isTamper = false)
+    // Note: If Strict Lock is actively counting down, Strict Lock overrides pause/unlock windows
+    val isStrict = FocusModeManager.isStrictLockActive(context)
+    if (!isStrict) {
+      if (ProtectionPauseManager.isPaused(context) || isTemporarilyUnlocked(context) || !isAlwaysOnEnabled(context)) {
+        return TamperCheckResult(isTamper = false)
+      }
     }
 
     val lowerPkg = packageName.lowercase()
@@ -248,36 +252,52 @@ object AlwaysOnSecurityManager {
     val lowerText = visibleText.lowercase()
     val ourPkg = context.packageName.lowercase()
 
-    // Match Life Tracker identity on screen (Requirement 1):
-    // 1. App name in English ("life tracker", "lifetracker")
-    // 2. App name in Hindi ("लाइफ ट्रैकर")
-    // 3. Package name or component ("com.example")
-    val hasLifeTrackerIdentity = lowerText.contains("life tracker") ||
+    val appName = try {
+      context.getString(R.string.app_name).lowercase()
+    } catch (_: Exception) {
+      "peewee block"
+    }
+
+    // Match Peewee Block identity on screen:
+    // 1. App name in English ("peewee block", "peeweeblock", "peewee")
+    // 2. Resource app_name string
+    // 3. Package name or applicationId ("com.example", "com.aistudio.lifetracker")
+    // 4. Legacy names ("life tracker", "lifetracker", "लाइफ ट्रैकर") for backwards compatibility
+    val hasAppIdentity = lowerText.contains("peewee block") ||
+      lowerText.contains("peeweeblock") ||
+      lowerText.contains("peewee") ||
+      lowerText.contains(appName) ||
+      lowerText.contains("life tracker") ||
       lowerText.contains("lifetracker") ||
       lowerText.contains("लाइफ ट्रैकर") ||
-      lowerText.contains(ourPkg)
+      lowerText.contains(ourPkg) ||
+      lowerText.contains("com.aistudio.lifetracker")
 
-    // If Life Tracker identity is NOT on screen, NEVER block! (Allows other apps & general settings)
-    if (!hasLifeTrackerIdentity) {
+    // If Peewee Block identity is NOT on screen, NEVER block! (Allows other apps & general settings)
+    if (!hasAppIdentity) {
       return TamperCheckResult(isTamper = false)
     }
 
-    // Now evaluate if this specific screen is one of the 5 tamper targets:
-
-    // 1. Life Tracker's Accessibility service detail/toggle page
+    // Now evaluate if this specific screen is one of the supported protection/tamper targets:
     val isSettingsPkg = lowerPkg == "com.android.settings" || lowerPkg == "com.google.android.settings"
+    val isInstallerPkg = lowerPkg.contains("packageinstaller") || lowerPkg.contains("installer") || lowerPkg == "android"
+
+    // 1. Peewee Block's Accessibility service detail/toggle page
     if (isSettingsPkg) {
       val isA11yScreen = lowerCls.contains("accessibility") || lowerCls.contains("togglescreen") || lowerCls.contains("subsettings")
       if (isA11yScreen) {
-        // Must be the DETAIL / TOGGLE page of Life Tracker, not merely a mention in a generic list
-        val hasToggleIndicators = lowerText.contains("use life tracker") ||
-          lowerText.contains("life tracker चालू करें") ||
-          lowerText.contains("लाइफ ट्रैकर का इस्तेमाल करें") ||
+        val hasToggleIndicators = lowerText.contains("use peewee block") ||
+          lowerText.contains("allow peewee block") ||
+          lowerText.contains("use $appName") ||
+          lowerText.contains("allow $appName") ||
+          lowerText.contains("use life tracker") ||
           lowerText.contains("allow life tracker") ||
           lowerText.contains("shortcut") ||
           lowerText.contains("शॉर्टकट") ||
           lowerText.contains("stop") ||
           lowerText.contains("रोकें") ||
+          lowerText.contains("turn off") ||
+          lowerText.contains("बंद करें") ||
           lowerText.contains("shortcontentaccessibilityservice") ||
           (lowerText.contains("service") && (lowerText.contains("on") || lowerText.contains("off") || lowerText.contains("चालू") || lowerText.contains("बंद")))
 
@@ -285,13 +305,13 @@ object AlwaysOnSecurityManager {
           return TamperCheckResult(
             isTamper = true,
             screenType = "Accessibility Service Toggle",
-            reason = "Life Tracker एक्सेसिबिलिटी सेवा बंद करने का प्रयास"
+            reason = "Peewee Block Accessibility Service tampering attempt"
           )
         }
       }
 
-      // 2. Life Tracker's Device Admin deactivate page
-      val isDeviceAdminScreen = lowerCls.contains("deviceadmin") || lowerCls.contains("device_admin")
+      // 2. Peewee Block's Device Admin deactivate page
+      val isDeviceAdminScreen = lowerCls.contains("deviceadmin") || lowerCls.contains("device_admin") || lowerCls.contains("admin")
       if (isDeviceAdminScreen) {
         val hasDeactivateWords = lowerText.contains("deactivate") ||
           lowerText.contains("निष्क्रिय") ||
@@ -303,17 +323,19 @@ object AlwaysOnSecurityManager {
           return TamperCheckResult(
             isTamper = true,
             screenType = "Device Admin Deactivation",
-            reason = "Life Tracker डिवाइस एडमिनिस्ट्रेटर हटाने का प्रयास"
+            reason = "Peewee Block Device Administrator deactivation attempt"
           )
         }
       }
 
-      // 3. Life Tracker's App Info page
+      // 3. Peewee Block's App Info page
       val isAppInfoScreen = lowerCls.contains("appinfo") ||
         lowerCls.contains("installedapp") ||
         lowerCls.contains("applications") ||
         lowerCls.contains("manageapplications") ||
-        lowerCls.contains("appdetails")
+        lowerCls.contains("appdetails") ||
+        lowerCls.contains("app_details") ||
+        lowerCls.contains("installedappdetail")
       if (isAppInfoScreen) {
         val hasAppInfoActions = lowerText.contains("uninstall") ||
           lowerText.contains("अनइंस्टॉल") ||
@@ -322,17 +344,19 @@ object AlwaysOnSecurityManager {
           lowerText.contains("storage") ||
           lowerText.contains("स्टोरेज") ||
           lowerText.contains("permissions") ||
-          lowerText.contains("अनुमतियां")
+          lowerText.contains("अनुमतियां") ||
+          lowerText.contains("clear data") ||
+          lowerText.contains("डेटा हटाएं")
         if (hasAppInfoActions) {
           return TamperCheckResult(
             isTamper = true,
             screenType = "App Info Page",
-            reason = "Life Tracker ऐप इन्फो या सेटिंग्स से छेड़छाड़ का प्रयास"
+            reason = "Peewee Block App Info setting modification attempt"
           )
         }
       }
 
-      // 4. Life Tracker's VPN forget/disconnect page
+      // 4. Peewee Block's VPN forget/disconnect page
       val isVpnScreen = lowerCls.contains("vpn")
       if (isVpnScreen) {
         val hasVpnTamperWords = lowerText.contains("forget") ||
@@ -344,23 +368,26 @@ object AlwaysOnSecurityManager {
           return TamperCheckResult(
             isTamper = true,
             screenType = "VPN Disconnect/Forget",
-            reason = "Life Tracker DNS VPN फ़िल्टर हटाने का प्रयास"
+            reason = "Peewee Block DNS VPN filter tampering attempt"
           )
         }
       }
     }
 
-    // 5. Life Tracker's Uninstall confirmation dialog (PackageInstaller)
-    if (lowerPkg.contains("packageinstaller") || lowerPkg.contains("settings")) {
+    // 5. Peewee Block's Uninstall confirmation dialog (PackageInstaller, Settings, System Dialog)
+    if (isInstallerPkg || isSettingsPkg) {
       val hasUninstallQuestion = lowerText.contains("uninstall") ||
         lowerText.contains("अनइंस्टॉल") ||
         lowerText.contains("do you want to uninstall") ||
-        lowerText.contains("क्या आप इस ऐप को अनइंस्टॉल")
+        lowerText.contains("क्या आप इस ऐप को अनइंस्टॉल") ||
+        lowerText.contains("delete") ||
+        lowerText.contains("remove") ||
+        lowerText.contains("हटाएं")
       if (hasUninstallQuestion) {
         return TamperCheckResult(
           isTamper = true,
           screenType = "Uninstall Confirmation Dialog",
-          reason = "Life Tracker अनइंस्टॉल करने का प्रयास"
+          reason = "Peewee Block uninstallation attempt"
         )
       }
     }

@@ -157,6 +157,10 @@ object ProtectionPauseManager {
    * Starts a temporary pause for the given duration in minutes.
    */
   fun startPause(context: Context, durationMinutes: Int): Boolean {
+    if (FocusModeManager.isStrictLockActive(context)) {
+      Log.w(TAG, "Cannot pause: Strict Lock is ACTIVE! Pause blocked.")
+      return false
+    }
     val today = getTodayDateString()
     val usedToday = getPausesUsedToday(context)
     if (usedToday >= MAX_PAUSES_PER_DAY) {

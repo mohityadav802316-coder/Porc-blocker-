@@ -71,6 +71,7 @@ class ShortContentAccessibilityService : AccessibilityService() {
   private var lastMultiUserCheckTimestamp: Long = 0L
   private var lastMultiUserBlockedTimestamp: Long = 0L
   private var lastSettingsContentChangeCheckTimestamp: Long = 0L
+  private var lastTamperBlockedTimestamp: Long = 0L
 
   /**
    * Fast, bounded recursive text extraction from an accessibility node hierarchy.
@@ -517,12 +518,15 @@ class ShortContentAccessibilityService : AccessibilityService() {
         }
       }
 
-      // Check 2: Life Tracker Tamper Protection (Accessibility toggle, Device Admin deactivate, App Info, Uninstall, VPN forget)
-      // Requirement 1: Only blocks when Life Tracker identity (English, Hindi, package) is present on that screen.
+      // Check 2: Peewee Block Tamper & Uninstall Protection (Accessibility toggle, Device Admin deactivate, App Info, Uninstall, VPN forget)
+      // Only blocks when Peewee Block identity (English, package, app name) is present on that screen.
       // Settings main page, general Accessibility list, and other apps are NEVER blocked!
       val eventTextJoined = event.text?.joinToString(" ") ?: ""
       val contentDescJoined = event.contentDescription?.toString() ?: ""
-      val hierarchyForTamper = if (isSettingsPkg || packageName.contains("packageinstaller")) {
+      val isInstallerPkg = packageName.contains("packageinstaller", ignoreCase = true) ||
+        packageName.contains("installer", ignoreCase = true) ||
+        packageName == "android"
+      val hierarchyForTamper = if (isSettingsPkg || isInstallerPkg) {
         extractAllNodeTexts(rootInActiveWindow ?: event.source, maxDepth = 6, maxNodes = 50)
       } else ""
       val fullTamperText = "$eventTextJoined $contentDescJoined $hierarchyForTamper"
@@ -535,21 +539,42 @@ class ShortContentAccessibilityService : AccessibilityService() {
       )
 
       if (tamperResult.isTamper) {
-        Log.w("ShortContentService", "ALWAYS-ON PROTECTION: Blocked tamper attempt: ${tamperResult.reason} ($packageName / $eventClassName)!")
-        // Requirement 1: Match hote hi GLOBAL_ACTION_HOME (ya BACK phir HOME) aur chhota sandesh
+        val now = System.currentTimeMillis()
+        if (now - lastTamperBlockedTimestamp < 800L) {
+          return
+        }
+        lastTamperBlockedTimestamp = now
+
+        Log.w("ShortContentService", "PEEWEE BLOCK TAMPER INTERCEPTED: ${tamperResult.reason} ($packageName / $eventClassName)!")
+
+        // 1. Dismiss the system dialog / popup immediately
         performGlobalAction(GLOBAL_ACTION_BACK)
-        performGlobalAction(GLOBAL_ACTION_HOME)
+
+        // 2. Immediately return the user to the Peewee Block home screen
+        try {
+          val homeIntent = android.content.Intent(applicationContext, com.example.MainActivity::class.java).apply {
+            flags = android.content.Intent.FLAG_ACTIVITY_NEW_TASK or
+              android.content.Intent.FLAG_ACTIVITY_CLEAR_TOP or
+              android.content.Intent.FLAG_ACTIVITY_SINGLE_TOP
+            putExtra("INTERCEPTED_TAMPER_ATTEMPT", true)
+            putExtra("TAMPER_REASON", tamperResult.reason)
+          }
+          startActivity(homeIntent)
+        } catch (e: Exception) {
+          Log.w("ShortContentService", "Failed to launch Peewee Block home screen on tamper", e)
+          performGlobalAction(GLOBAL_ACTION_HOME)
+        }
 
         android.os.Handler(android.os.Looper.getMainLooper()).post {
-          android.widget.Toast.makeText(applicationContext, "यह विकल्प सुरक्षा के लिए बंद है", android.widget.Toast.LENGTH_SHORT).show()
+          android.widget.Toast.makeText(applicationContext, "Peewee Block: This setting is protected", android.widget.Toast.LENGTH_SHORT).show()
         }
 
         if (Settings.canDrawOverlays(this)) {
           FocusBlockingOverlayManager.show(
             context = this,
             blockedPackage = packageName,
-            customTitle = "🛡️ सुरक्षा सुरक्षा सक्रिय",
-            customNotice = "${tamperResult.reason}। यह विकल्प सुरक्षा के लिए बंद है।"
+            customTitle = "🛡️ Peewee Block Protected",
+            customNotice = "${tamperResult.reason} is protected while Peewee Block is active."
           )
         }
 
@@ -563,8 +588,8 @@ class ShortContentAccessibilityService : AccessibilityService() {
         // Post high-priority alert on Security Alerts channel
         com.example.focus.StrictLockWatchdog.postAlertNotification(
           context = this,
-          title = "🛡️ सुरक्षा चेतावनी: छेड़छाड़ रोकी गई",
-          message = "${tamperResult.reason}। यह विकल्प सुरक्षा के लिए बंद है।",
+          title = "🛡️ Peewee Block Security Alert",
+          message = "${tamperResult.reason} was blocked.",
           intentAction = android.provider.Settings.ACTION_SETTINGS
         )
         return

@@ -151,6 +151,7 @@ fun PeeweeBlockDashboardScreen(
   var showBlocklistDialog by remember { mutableStateOf(false) }
   var showSettingsSheet by remember { mutableStateOf(false) }
   var showChecklistDialog by remember { mutableStateOf(false) }
+  var showStrictLockDialog by remember { mutableStateOf(false) }
   var showPinDialog by remember { mutableStateOf(false) }
   var pinDialogMode by remember { mutableStateOf(AccountabilityPinDialogMode.INITIAL_SETUP) }
   var showResetConfirmDialog by remember { mutableStateOf(false) }
@@ -244,6 +245,10 @@ fun PeeweeBlockDashboardScreen(
     // 2. STRICT LOCK ALERT BANNER (If Active)
     if (isStrictLockActive) {
       item {
+        val hours = strictLockRemainingMins / 60
+        val mins = strictLockRemainingMins % 60
+        val remainingText = if (hours > 0) "${hours}h ${mins}m" else "$strictLockRemainingMins minutes"
+
         Box(
           modifier = Modifier
             .fillMaxWidth()
@@ -255,35 +260,59 @@ fun PeeweeBlockDashboardScreen(
         ) {
           Row(
             modifier = Modifier.fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween
           ) {
-            Box(
-              modifier = Modifier
-                .size(40.dp)
-                .clip(CircleShape)
-                .background(RedAlert.copy(alpha = 0.2f)),
-              contentAlignment = Alignment.Center
+            Row(
+              modifier = Modifier.weight(1f),
+              verticalAlignment = Alignment.CenterVertically
             ) {
-              Icon(
-                imageVector = Icons.Default.Lock,
-                contentDescription = null,
-                tint = RedAlert,
-                modifier = Modifier.size(22.dp)
-              )
+              Box(
+                modifier = Modifier
+                  .size(40.dp)
+                  .clip(CircleShape)
+                  .background(RedAlert.copy(alpha = 0.2f)),
+                contentAlignment = Alignment.Center
+              ) {
+                Icon(
+                  imageVector = Icons.Default.Lock,
+                  contentDescription = null,
+                  tint = RedAlert,
+                  modifier = Modifier.size(22.dp)
+                )
+              }
+              Spacer(modifier = Modifier.width(12.dp))
+              Column {
+                Text(
+                  text = "Strict Lock Active",
+                  color = RedAlert,
+                  fontSize = 15.sp,
+                  fontWeight = FontWeight.Bold
+                )
+                Text(
+                  text = "$remainingText remaining • Protection locked",
+                  color = Color(0xFFFFB4AB),
+                  fontSize = 12.sp
+                )
+              }
             }
-            Spacer(modifier = Modifier.width(12.dp))
-            Column(modifier = Modifier.weight(1f)) {
-              Text(
-                text = "Strict Lock Active",
-                color = RedAlert,
-                fontSize = 15.sp,
-                fontWeight = FontWeight.Bold
-              )
-              Text(
-                text = "$strictLockRemainingMins minutes remaining • Protection locked",
-                color = Color(0xFFFFB4AB),
-                fontSize = 12.sp
-              )
+
+            if (isPinSet) {
+              OutlinedButton(
+                onClick = {
+                  pinDialogMode = AccountabilityPinDialogMode.VERIFY_ONLY
+                  showPinDialog = true
+                },
+                colors = ButtonDefaults.outlinedButtonColors(contentColor = Color(0xFFFFB4AB)),
+                border = androidx.compose.foundation.BorderStroke(1.dp, RedAlert.copy(alpha = 0.6f)),
+                shape = RoundedCornerShape(8.dp),
+                contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp),
+                modifier = Modifier
+                  .height(34.dp)
+                  .testTag("strict_lock_unlock_button")
+              ) {
+                Text("Unlock (PIN)", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+              }
             }
           }
         }
@@ -343,7 +372,7 @@ fun PeeweeBlockDashboardScreen(
             // Primary Toggle Switch
             Switch(
               checked = activeReport.isMasterEnabled && activeReport.status != ProtectionStatus.PROTECTION_DISABLED,
-              enabled = !isStrictLockActive,
+              enabled = true,
               onCheckedChange = { enable ->
                 if (enable) {
                   PeeweeProtectionManager.setMasterProtectionEnabled(context, true)
@@ -360,7 +389,12 @@ fun PeeweeBlockDashboardScreen(
                   PeeweeProtectionManager.evaluateProtectionState(context)
                 } else {
                   if (isStrictLockActive) {
-                    Toast.makeText(context, "Strict Lock is active. Protection cannot be turned off.", Toast.LENGTH_SHORT).show()
+                    if (isPinSet) {
+                      pinDialogMode = AccountabilityPinDialogMode.VERIFY_ONLY
+                      showPinDialog = true
+                    } else {
+                      Toast.makeText(context, "Strict Lock is active. Ordinary controls cannot disable it without a configured PIN.", Toast.LENGTH_LONG).show()
+                    }
                   } else if (isPinSet) {
                     pinDialogMode = AccountabilityPinDialogMode.VERIFY_ONLY
                     showPinDialog = true
@@ -876,9 +910,87 @@ fun PeeweeBlockDashboardScreen(
         showPinDialog = false
         isPinSet = AccountabilityPinManager.isPinSet(context)
         if (pinDialogMode == AccountabilityPinDialogMode.VERIFY_ONLY) {
-          LocalDnsVpnService.stop(context, pinVerified = true)
+          if (isStrictLockActive) {
+            FocusModeManager.deactivateFocusMode(context, force = true)
+            isStrictLockActive = false
+            PeeweeProtectionManager.evaluateProtectionState(context)
+            Toast.makeText(context, "Strict Lock unlocked with PIN.", Toast.LENGTH_SHORT).show()
+          } else {
+            PeeweeProtectionManager.setMasterProtectionEnabled(context, false)
+            LocalDnsVpnService.stop(context, pinVerified = true)
+            PeeweeProtectionManager.evaluateProtectionState(context)
+            Toast.makeText(context, "Protection disabled with PIN.", Toast.LENGTH_SHORT).show()
+          }
         }
       }
+    )
+  }
+
+  // STRICT LOCK DURATION PICKER DIALOG (15m, 1h, 24h)
+  if (showStrictLockDialog) {
+    AlertDialog(
+      onDismissRequest = { showStrictLockDialog = false },
+      title = {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+          Icon(Icons.Default.Lock, contentDescription = null, tint = RedAlert, modifier = Modifier.size(22.dp))
+          Spacer(modifier = Modifier.width(8.dp))
+          Text("Strict Lock Protection", color = TextWhite, fontWeight = FontWeight.Bold, fontSize = 17.sp)
+        }
+      },
+      text = {
+        Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+          Text(
+            text = "Strict Lock hardens adult content blocking and uninstall protection. While active, protection cannot be disabled without entering your configured PIN, and access to uninstalling Peewee Block is locked.",
+            color = TextMuted,
+            fontSize = 12.sp,
+            lineHeight = 16.sp
+          )
+          Spacer(modifier = Modifier.height(2.dp))
+          Text("Choose Protection Duration:", color = TextWhite, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+
+          val durations = listOf(
+            15 to "15 Minutes (Emergency Cooldown)",
+            60 to "1 Hour (Intensive Focus)",
+            1440 to "24 Hours (Full-Day Anti-Relapse Lock)"
+          )
+
+          durations.forEach { (mins, label) ->
+            OutlinedButton(
+              onClick = {
+                showStrictLockDialog = false
+                FocusModeManager.activateStrictLock(
+                  context = context,
+                  durationMinutes = mins,
+                  reason = "Manual Strict Lock ($label)",
+                  packageName = context.packageName
+                )
+                PeeweeStatsManager.recordStrictLockActivation(context)
+                isStrictLockActive = true
+                strictLockRemainingMins = mins
+                PeeweeProtectionManager.evaluateProtectionState(context)
+                val durationDisplay = if (mins >= 60) "${mins / 60} hours" else "$mins minutes"
+                Toast.makeText(context, "Strict Lock active for $durationDisplay.", Toast.LENGTH_SHORT).show()
+              },
+              modifier = Modifier
+                .fillMaxWidth()
+                .height(42.dp),
+              colors = ButtonDefaults.outlinedButtonColors(contentColor = CyanAccent),
+              border = androidx.compose.foundation.BorderStroke(1.dp, CyanAccent.copy(alpha = 0.5f)),
+              shape = RoundedCornerShape(10.dp)
+            ) {
+              Text(label, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+            }
+          }
+        }
+      },
+      confirmButton = {},
+      dismissButton = {
+        TextButton(onClick = { showStrictLockDialog = false }) {
+          Text("Cancel", color = TextMuted)
+        }
+      },
+      containerColor = CardBg,
+      shape = RoundedCornerShape(16.dp)
     )
   }
 
@@ -927,7 +1039,36 @@ fun PeeweeBlockDashboardScreen(
           }
         )
 
-        // Setting 1: Blocklist Shortcut
+        // Setting 1: Strict Lock Mode (15m / 1h / 24h)
+        SettingsRowItem(
+          icon = Icons.Default.Lock,
+          iconTint = if (isStrictLockActive) RedAlert else CyanAccent,
+          title = "Strict Lock Mode",
+          subtitle = if (isStrictLockActive) {
+            val hours = strictLockRemainingMins / 60
+            val mins = strictLockRemainingMins % 60
+            val remText = if (hours > 0) "${hours}h ${mins}m" else "$strictLockRemainingMins mins"
+            "Active ($remText remaining • Tap to unlock with PIN)"
+          } else {
+            "Lock protection for 15 minutes, 1 hour, or 24 hours"
+          },
+          actionText = if (isStrictLockActive) "Unlock →" else "Configure →",
+          onClick = {
+            showSettingsSheet = false
+            if (isStrictLockActive) {
+              if (isPinSet) {
+                pinDialogMode = AccountabilityPinDialogMode.VERIFY_ONLY
+                showPinDialog = true
+              } else {
+                Toast.makeText(context, "Strict Lock active. Set an Accountability PIN to unlock early, or wait for timer.", Toast.LENGTH_SHORT).show()
+              }
+            } else {
+              showStrictLockDialog = true
+            }
+          }
+        )
+
+        // Setting 2: Blocklist Shortcut
         SettingsRowItem(
           icon = Icons.Default.Security,
           iconTint = CyanAccent,
@@ -940,7 +1081,7 @@ fun PeeweeBlockDashboardScreen(
           }
         )
 
-        // Setting 2: Accountability PIN
+        // Setting 3: Accountability PIN
         SettingsRowItem(
           icon = Icons.Default.Lock,
           iconTint = if (isPinSet) GreenActive else PurpleAccent,

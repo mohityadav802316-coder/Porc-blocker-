@@ -194,4 +194,87 @@ class AlwaysOnTamperProtectionTest {
     assertTrue(AppNotificationChannels.ALL_CHANNELS.any { it.id == AppNotificationChannels.CHANNEL_SECURITY_ALERTS })
     assertTrue(AppNotificationChannels.ALL_CHANNELS.any { it.id == AppNotificationChannels.CHANNEL_REMINDERS })
   }
+
+  // =========================================================================
+  // 4. PEEWEE BLOCK UNINSTALL & STRICT LOCK TESTS
+  // =========================================================================
+
+  @Test
+  fun `blocks Peewee Block own uninstall confirmation dialog`() {
+    val uninstallDialog = AlwaysOnSecurityManager.evaluateTamperScreen(
+      context = context,
+      packageName = "com.google.android.packageinstaller",
+      className = "com.android.packageinstaller.UninstallerActivity",
+      visibleText = "Do you want to uninstall this app? Peewee Block Cancel OK"
+    )
+    assertTrue("Must detect Peewee Block uninstall dialog", uninstallDialog.isTamper)
+    assertEquals("Uninstall Confirmation Dialog", uninstallDialog.screenType)
+  }
+
+  @Test
+  fun `blocks Peewee Block own app info screen`() {
+    val appInfo = AlwaysOnSecurityManager.evaluateTamperScreen(
+      context = context,
+      packageName = "com.android.settings",
+      className = "com.android.settings.applications.InstalledAppDetails",
+      visibleText = "Peewee Block Uninstall Force stop Storage & cache Permissions"
+    )
+    assertTrue("Must detect Peewee Block App Info page", appInfo.isTamper)
+    assertEquals("App Info Page", appInfo.screenType)
+  }
+
+  @Test
+  fun `blocks Peewee Block own accessibility toggle screen`() {
+    val a11yToggle = AlwaysOnSecurityManager.evaluateTamperScreen(
+      context = context,
+      packageName = "com.android.settings",
+      className = "com.android.settings.SubSettings",
+      visibleText = "Peewee Block Use Peewee Block Allow Shortcut ShortContentAccessibilityService"
+    )
+    assertTrue("Must detect Peewee Block accessibility toggle", a11yToggle.isTamper)
+    assertEquals("Accessibility Service Toggle", a11yToggle.screenType)
+  }
+
+  @Test
+  fun `blocks Peewee Block own device admin deactivation screen`() {
+    val adminScreen = AlwaysOnSecurityManager.evaluateTamperScreen(
+      context = context,
+      packageName = "com.android.settings",
+      className = "com.android.settings.DeviceAdminAdd",
+      visibleText = "Peewee Block LifeTrackerAdminReceiver Deactivate this device admin app"
+    )
+    assertTrue("Must detect Peewee Block device admin deactivation", adminScreen.isTamper)
+    assertEquals("Device Admin Deactivation", adminScreen.screenType)
+  }
+
+  @Test
+  fun `24-hour Strict Lock countdown persists and survives simulated reboot`() {
+    FocusModeManager.deactivateFocusMode(context, force = true)
+    assertFalse(FocusModeManager.isStrictLockActive(context))
+
+    // Activate 24-hour Strict Lock (1440 minutes = 86400 seconds)
+    FocusModeManager.activateStrictLock(
+      context = context,
+      durationMinutes = 1440,
+      reason = "24-hour Anti-Relapse Lock",
+      packageName = context.packageName
+    )
+
+    assertTrue("Strict Lock must be active", FocusModeManager.isStrictLockActive(context))
+    val remainingMillis = FocusModeManager.getStrictLockRemainingMillis(context)
+    assertTrue("Remaining time should be approximately 24 hours", remainingMillis > (23 * 3600 * 1000L))
+
+    // Simulate reboot recovery
+    FocusModeManager.onBootOrScheduleChange(context)
+    assertTrue("Strict Lock must remain active after simulated reboot", FocusModeManager.isStrictLockActive(context))
+    assertTrue("Remaining time must still be positive after reboot", FocusModeManager.getStrictLockRemainingMillis(context) > 0L)
+
+    // Ordinary deactivation without force is blocked
+    FocusModeManager.deactivateFocusMode(context, force = false)
+    assertTrue("Strict Lock must STILL be active after unforced deactivation attempt", FocusModeManager.isStrictLockActive(context))
+
+    // Force deactivation (used when PIN is verified)
+    FocusModeManager.deactivateFocusMode(context, force = true)
+    assertFalse("Strict Lock should be inactive after force deactivation with PIN", FocusModeManager.isStrictLockActive(context))
+  }
 }

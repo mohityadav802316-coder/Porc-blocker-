@@ -101,7 +101,9 @@ class MainActivity : ComponentActivity() {
       window.attributes.layoutInDisplayCutoutMode = WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES
     }
 
-    if (intent?.getBooleanExtra("OPEN_PROTECTION_HEALTH", false) == true) {
+    if (intent?.getBooleanExtra("INTERCEPTED_TAMPER_ATTEMPT", false) == true) {
+      android.widget.Toast.makeText(this, "Peewee Block: Protected setting access blocked.", android.widget.Toast.LENGTH_SHORT).show()
+    } else if (intent?.getBooleanExtra("OPEN_PROTECTION_HEALTH", false) == true) {
       viewModel.setTab(MainTab.PROTECTION_HEALTH)
     } else if (intent?.getBooleanExtra("NAVIGATE_TO_SETTINGS", false) == true || intent?.getBooleanExtra("SHOW_RESTORE_PROTECTION", false) == true) {
       viewModel.setTab(MainTab.SETTINGS)
@@ -127,7 +129,9 @@ class MainActivity : ComponentActivity() {
   override fun onNewIntent(intent: Intent) {
     super.onNewIntent(intent)
     setIntent(intent)
-    if (intent.getBooleanExtra("OPEN_PROTECTION_HEALTH", false)) {
+    if (intent.getBooleanExtra("INTERCEPTED_TAMPER_ATTEMPT", false)) {
+      android.widget.Toast.makeText(this, "Peewee Block: Protected setting access blocked.", android.widget.Toast.LENGTH_SHORT).show()
+    } else if (intent.getBooleanExtra("OPEN_PROTECTION_HEALTH", false)) {
       viewModel.setTab(MainTab.PROTECTION_HEALTH)
     } else if (intent.getBooleanExtra("NAVIGATE_TO_SETTINGS", false) || intent.getBooleanExtra("SHOW_RESTORE_PROTECTION", false)) {
       viewModel.setTab(MainTab.SETTINGS)
