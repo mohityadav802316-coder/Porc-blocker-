@@ -58,7 +58,7 @@ object StrictLockWatchdog {
         message = if (isStrict) {
           "सख्त डिजिटल अनुशासन (Strict Lock) चालू है। फ़ौरन एक्सेसिबिलिटी दोबारा चालू करें।"
         } else {
-          "Life Tracker की सुरक्षा व डिजिटल अनुशासन सक्रिय रखने हेतु एक्सेसिबिलिटी चालू करना आवश्यक है।"
+          "Peewee Block की सुरक्षा व डिजिटल अनुशासन सक्रिय रखने हेतु एक्सेसिबिलिटी चालू करना आवश्यक है।"
         },
         intentAction = android.provider.Settings.ACTION_ACCESSIBILITY_SETTINGS
       )

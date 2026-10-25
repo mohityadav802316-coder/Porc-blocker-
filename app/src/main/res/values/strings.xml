@@ -96,7 +96,7 @@
     <string name="range_end">Range end</string>
     <string name="range_start">Range start</string>
     <string name="selected">Selected</string>
-    <string name="short_content_accessibility_desc" translatable="false">Life Tracker Short Content Tracker: रील्स और शॉर्ट्स की वास्तविक संख्या व उपयोग समय गिनने के लिए आवश्यक है। आपका कोई भी व्यक्तिगत डेटा, पासवर्ड या संदेश कभी नहीं पढ़ा जाता।</string>
+    <string name="short_content_accessibility_desc" translatable="false">Peewee Block: Required to detect and block explicit adult content and enforce Strict Lock protection. Your passwords, messages, and personal data are never collected or stored.</string>
     <string name="state_empty">Empty</string>
     <string name="state_off">Off</string>
     <string name="state_on">On</string>
@@ -106,5 +106,5 @@
     <string name="template_percent">%1$d percent.</string>
     <string name="tooltip_description">tooltip</string>
     <string name="tooltip_label">show tooltip</string>
-    <string name="device_admin_description" translatable="false">Life Tracker के सख्त अनुशासन (Strict Lock) के दौरान ऐप को अनइंस्टॉल होने या रोके जाने से सुरक्षित रखने के लिए आवश्यक है।</string>
+    <string name="device_admin_description" translatable="false">Peewee Block: Prevents accidental uninstallation and tampering while Strict Lock is active.</string>
 </resources>

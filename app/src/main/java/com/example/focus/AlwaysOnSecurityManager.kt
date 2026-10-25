@@ -286,27 +286,37 @@ object AlwaysOnSecurityManager {
     if (isSettingsPkg) {
       val isA11yScreen = lowerCls.contains("accessibility") || lowerCls.contains("togglescreen") || lowerCls.contains("subsettings")
       if (isA11yScreen) {
-        val hasToggleIndicators = lowerText.contains("use peewee block") ||
-          lowerText.contains("allow peewee block") ||
-          lowerText.contains("use $appName") ||
-          lowerText.contains("allow $appName") ||
-          lowerText.contains("use life tracker") ||
-          lowerText.contains("allow life tracker") ||
-          lowerText.contains("shortcut") ||
-          lowerText.contains("शॉर्टकट") ||
-          lowerText.contains("stop") ||
-          lowerText.contains("रोकें") ||
-          lowerText.contains("turn off") ||
-          lowerText.contains("बंद करें") ||
-          lowerText.contains("shortcontentaccessibilityservice") ||
-          (lowerText.contains("service") && (lowerText.contains("on") || lowerText.contains("off") || lowerText.contains("चालू") || lowerText.contains("बंद")))
+        val isServiceList = (lowerText.contains("downloaded services") ||
+          lowerText.contains("installed services") ||
+          lowerText.contains("downloaded apps") ||
+          lowerText.contains("installed apps")) &&
+          !lowerText.contains("turn off") &&
+          !lowerText.contains("stop") &&
+          !lowerText.contains("बंद करें") &&
+          !lowerText.contains("रोकें")
 
-        if (hasToggleIndicators) {
-          return TamperCheckResult(
-            isTamper = true,
-            screenType = "Accessibility Service Toggle",
-            reason = "Peewee Block Accessibility Service tampering attempt"
-          )
+        if (!isServiceList) {
+          val hasToggleIndicators = lowerText.contains("use peewee block") ||
+            lowerText.contains("allow peewee block") ||
+            lowerText.contains("use $appName") ||
+            lowerText.contains("allow $appName") ||
+            lowerText.contains("use life tracker") ||
+            lowerText.contains("allow life tracker") ||
+            lowerText.contains("shortcut") ||
+            lowerText.contains("शॉर्टकट") ||
+            lowerText.contains("stop") ||
+            lowerText.contains("रोकें") ||
+            lowerText.contains("turn off") ||
+            lowerText.contains("बंद करें") ||
+            lowerText.contains("shortcontentaccessibilityservice")
+
+          if (hasToggleIndicators) {
+            return TamperCheckResult(
+              isTamper = true,
+              screenType = "Accessibility Service Toggle",
+              reason = "Peewee Block Accessibility Service tampering attempt"
+            )
+          }
         }
       }
 

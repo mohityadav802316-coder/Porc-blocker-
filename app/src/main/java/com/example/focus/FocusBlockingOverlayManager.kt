@@ -540,7 +540,7 @@ object FocusBlockingOverlayManager {
       card.addView(homeButton)
 
       val appButton = Button(context.applicationContext).apply {
-        text = "Life Tracker खोलें (अनलॉक)"
+        text = "Peewee Block खोलें (Open Peewee Block)"
         setTextColor(Color.parseColor("#E0E0E0"))
         isEnabled = true
         setTextSize(TypedValue.COMPLEX_UNIT_SP, 13f)

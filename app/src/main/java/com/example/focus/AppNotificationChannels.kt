@@ -39,7 +39,7 @@ object AppNotificationChannels {
       nameHindi = "प्रोटेक्शन रनिंग (Protection Running)",
       nameEnglish = "Protection Running Foreground Service",
       importanceLabel = "Silent / Low (शांत)",
-      triggerConditionHindi = "जब Life Tracker की बैकग्राउंड सुरक्षा और वॉचडॉग सक्रिय हो।",
+      triggerConditionHindi = "जब Peewee Block की बैकग्राउंड सुरक्षा और वॉचडॉग सक्रिय हो।",
       reasonNeededHindi = "Android OS को ऐप की सुरक्षा सेवा को मेमोरी से बंद करने से रोकने हेतु आवश्यक निरंतर सूचना।"
     ),
     ChannelDetail(
@@ -55,7 +55,7 @@ object AppNotificationChannels {
       nameHindi = "सुरक्षा चेतावनियाँ (Security Alerts)",
       nameEnglish = "Security Alerts & Tamper Intercepts",
       importanceLabel = "High / ज़रूरी (ध्वनि/अलर्ट सहित)",
-      triggerConditionHindi = "जब कोई Life Tracker को बंद/अनइंस्टॉल करने की कोशिश करे, मल्टी-यूज़र बायपास खुले, या सुरक्षा घटक बंद मिले।",
+      triggerConditionHindi = "जब कोई Peewee Block को बंद/अनइंस्टॉल करने की कोशिश करे, मल्टी-यूज़र बायपास खुले, या सुरक्षा घटक बंद मिले।",
       reasonNeededHindi = "बायपास और छेड़छाड़ के प्रयास को तुरंत उपयोगकर्ता और जवाबदेह साथी को सूचित करने हेतु।"
     ),
     ChannelDetail(

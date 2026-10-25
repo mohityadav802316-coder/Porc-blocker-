@@ -34,7 +34,7 @@ class LifeTrackerAdminReceiver : DeviceAdminReceiver() {
     fun requestAdminPermission(context: Context) {
       val intent = Intent(android.app.admin.DevicePolicyManager.ACTION_ADD_DEVICE_ADMIN).apply {
         putExtra(android.app.admin.DevicePolicyManager.EXTRA_DEVICE_ADMIN, getComponentName(context))
-        putExtra(android.app.admin.DevicePolicyManager.EXTRA_ADD_EXPLANATION, "Life Tracker के सख्त अनुशासन के दौरान अनइंस्टॉल सुरक्षा चालू रखें।")
+        putExtra(android.app.admin.DevicePolicyManager.EXTRA_ADD_EXPLANATION, "Peewee Block के सख्त अनुशासन के दौरान अनइंस्टॉल सुरक्षा चालू रखें।")
         flags = Intent.FLAG_ACTIVITY_NEW_TASK
       }
       try {
@@ -47,8 +47,8 @@ class LifeTrackerAdminReceiver : DeviceAdminReceiver() {
 
   override fun onEnabled(context: Context, intent: Intent) {
     super.onEnabled(context, intent)
-    Log.i(TAG, "Life Tracker Device Admin enabled successfully.")
-    Toast.makeText(context, "Life Tracker अनइंस्टॉल सुरक्षा सक्रिय", Toast.LENGTH_SHORT).show()
+    Log.i(TAG, "Peewee Block Device Admin enabled successfully.")
+    Toast.makeText(context, "Peewee Block अनइंस्टॉल सुरक्षा सक्रिय", Toast.LENGTH_SHORT).show()
     // Re-apply Device Owner & Secure Settings user restrictions if available
     MultiUserProtectionManager.applyDeviceOwnerRestrictions(context)
     MultiUserProtectionManager.applySecureSettingsRestrictions(context)
@@ -56,7 +56,7 @@ class LifeTrackerAdminReceiver : DeviceAdminReceiver() {
 
   override fun onDisabled(context: Context, intent: Intent) {
     super.onDisabled(context, intent)
-    Log.w(TAG, "Life Tracker Device Admin disabled.")
+    Log.w(TAG, "Peewee Block Device Admin disabled.")
   }
 
   override fun onDisableRequested(context: Context, intent: Intent): CharSequence {
@@ -68,6 +68,6 @@ class LifeTrackerAdminReceiver : DeviceAdminReceiver() {
           "शेष समय: $mins मिनट।\n" +
           "सत्र समाप्त होने से पहले डिवाइस एडमिन हटाना या ऐप अनइंस्टॉल करना वर्जित है।"
     }
-    return "Life Tracker अनइंस्टॉल सुरक्षा को निष्क्रिय करने जा रहे हैं।"
+    return "Peewee Block अनइंस्टॉल सुरक्षा को निष्क्रिय करने जा रहे हैं।"
   }
 }

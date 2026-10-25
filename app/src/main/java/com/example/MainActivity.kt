@@ -169,41 +169,34 @@ fun LifeTrackerApp(viewModel: LifeTrackerViewModel) {
     }
   }
 
-  if (isFocusModeActive) {
-    com.example.ui.screens.FocusRestrictionScreen(viewModel = viewModel)
-  } else {
-    BackHandler(enabled = currentTab != MainTab.TODAY) {
-      viewModel.setTab(MainTab.TODAY)
-    }
+  BackHandler(enabled = currentTab != MainTab.TODAY) {
+    viewModel.setTab(MainTab.TODAY)
+  }
 
+  Box(
+    modifier = Modifier
+      .fillMaxSize()
+      .background(Color(0xFF090D16)),
+    contentAlignment = Alignment.TopCenter
+  ) {
     Box(
       modifier = Modifier
         .fillMaxSize()
-        .background(Color(0xFF090D16)),
-      contentAlignment = Alignment.TopCenter
+        .widthIn(max = 680.dp)
     ) {
-      Box(
-        modifier = Modifier
-          .fillMaxSize()
-          .widthIn(max = 680.dp)
-      ) {
-        Crossfade(
-          targetState = currentTab,
-          animationSpec = tween(durationMillis = 200),
-          label = "dashboard_crossfade"
-        ) { tab ->
-          when (tab) {
-            MainTab.PROTECTION_HEALTH -> com.example.ui.screens.ProtectionHealthScreen(
-              onNavigateBack = { viewModel.setTab(MainTab.TODAY) }
-            )
-            MainTab.SETTINGS -> SettingsScreen(
-              viewModel = viewModel
-            )
-            else -> com.example.ui.screens.PeeweeBlockDashboardScreen(
-              onOpenSettings = { viewModel.setTab(MainTab.SETTINGS) },
-              onOpenHealthLog = { viewModel.setTab(MainTab.PROTECTION_HEALTH) }
-            )
-          }
+      Crossfade(
+        targetState = currentTab,
+        animationSpec = tween(durationMillis = 200),
+        label = "dashboard_crossfade"
+      ) { tab ->
+        when (tab) {
+          MainTab.PROTECTION_HEALTH -> com.example.ui.screens.ProtectionHealthScreen(
+            onNavigateBack = { viewModel.setTab(MainTab.TODAY) }
+          )
+          else -> com.example.ui.screens.PeeweeBlockDashboardScreen(
+            onOpenSettings = { viewModel.setTab(MainTab.TODAY) },
+            onOpenHealthLog = { viewModel.setTab(MainTab.PROTECTION_HEALTH) }
+          )
         }
       }
     }

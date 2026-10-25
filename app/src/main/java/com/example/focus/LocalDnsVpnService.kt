@@ -458,7 +458,7 @@ class LocalDnsVpnService : VpnService() {
         StrictLockWatchdog.postAlertNotification(
           context = this,
           title = "⚠️ सुरक्षा चेतावनी: DNS फ़िल्टर बंद हो गया!",
-          message = "किसी अन्य VPN या सिस्टम सेटिंग द्वारा Life Tracker का लोकल DNS फ़िल्टर हटा दिया गया है। कृपया सुरक्षा दोबारा चालू करें।",
+          message = "किसी अन्य VPN या सिस्टम सेटिंग द्वारा Peewee Block का लोकल DNS फ़िल्टर हटा दिया गया है। कृपया सुरक्षा दोबारा चालू करें।",
           intentAction = android.provider.Settings.ACTION_VPN_SETTINGS
         )
       }
