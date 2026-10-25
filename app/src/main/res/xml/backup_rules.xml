@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<full-backup-content>
+    <include domain="database" path="."/>
+    <include domain="sharedpref" path="."/>
+    <!-- CRITICAL: Never include accountability PIN preferences in any backup or export -->
+    <exclude domain="sharedpref" path="accountability_pin_prefs.xml"/>
+</full-backup-content>
