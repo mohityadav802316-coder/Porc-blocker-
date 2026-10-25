@@ -384,22 +384,20 @@ object AlwaysOnSecurityManager {
       }
     }
 
-    // 5. Peewee Block's Uninstall confirmation dialog (PackageInstaller, Settings, System Dialog)
-    if (isInstallerPkg || isSettingsPkg) {
-      val hasUninstallQuestion = lowerText.contains("uninstall") ||
-        lowerText.contains("अनइंस्टॉल") ||
-        lowerText.contains("do you want to uninstall") ||
-        lowerText.contains("क्या आप इस ऐप को अनइंस्टॉल") ||
-        lowerText.contains("delete") ||
-        lowerText.contains("remove") ||
-        lowerText.contains("हटाएं")
-      if (hasUninstallQuestion) {
-        return TamperCheckResult(
-          isTamper = true,
-          screenType = "Uninstall Confirmation Dialog",
-          reason = "Peewee Block uninstallation attempt"
-        )
-      }
+    // 5. Peewee Block's Uninstall confirmation dialog (PackageInstaller, Settings, System Dialog, Launchers)
+    val hasUninstallQuestion = lowerText.contains("uninstall") ||
+      lowerText.contains("अनइंस्टॉल") ||
+      lowerText.contains("do you want to uninstall") ||
+      lowerText.contains("क्या आप इस ऐप को अनइंस्टॉल") ||
+      lowerText.contains("delete") ||
+      lowerText.contains("remove") ||
+      lowerText.contains("हटाएं")
+    if (hasUninstallQuestion) {
+      return TamperCheckResult(
+        isTamper = true,
+        screenType = "Uninstall Confirmation Dialog",
+        reason = "Peewee Block uninstallation attempt"
+      )
     }
 
     return TamperCheckResult(isTamper = false)

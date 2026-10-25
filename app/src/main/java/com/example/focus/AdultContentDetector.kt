@@ -152,6 +152,24 @@ object AdultContentDetector {
           // A. URL / Address Bar check
           val urlBarText = BrowserUrlExtractor.extractUrlBarText(nodeToInspect)
           if (!urlBarText.isNullOrBlank()) {
+            val urlLower = urlBarText.lowercase()
+            // Check if active URL is a verified safe developer, search, or knowledge platform
+            val isSafePlatform = AdultBlocklistManager.SAFE_DOMAINS_WHITELIST.any { safe ->
+              urlLower.contains(safe)
+            }
+            if (isSafePlatform) {
+              // On Google Search, only block if the user explicitly typed an explicit porn phrase in search
+              if (urlLower.contains("google.") && (urlLower.contains("/search") || urlLower.contains("?q=") || urlLower.contains("&q="))) {
+                val queryResult = checkText(context, urlBarText, packageName)
+                if (queryResult != null && (queryResult.category == "Explicit Phrase" || queryResult.category == "Adult Domain")) {
+                  lastTriggerTimestamp = now
+                  return queryResult
+                }
+              }
+              // Safe platforms (Google AI Studio, Wikipedia, GitHub, StackOverflow, etc.) are never interrupted
+              return null
+            }
+
             val urlResult = checkText(context, urlBarText, packageName)
             if (urlResult != null) {
               lastTriggerTimestamp = now
@@ -159,8 +177,8 @@ object AdultContentDetector {
             }
           }
 
-          // B. Visible text chunks check
-          val chunks = BrowserUrlExtractor.collectVisibleTextChunks(nodeToInspect, maxNodes = 50)
+          // B. Visible text chunks check (only on unverified / non-whitelisted sites)
+          val chunks = BrowserUrlExtractor.collectVisibleTextChunks(nodeToInspect, maxNodes = 40)
           for (chunk in chunks) {
             val chunkResult = checkText(context, chunk, packageName)
             if (chunkResult != null) {
@@ -168,9 +186,10 @@ object AdultContentDetector {
               return chunkResult
             }
           }
+          return null
         }
 
-        val result = inspectNodeHierarchy(context, nodeToInspect, packageName, maxNodes = 60)
+        val result = inspectNodeHierarchy(context, nodeToInspect, packageName, maxNodes = 50)
         if (result != null) {
           lastTriggerTimestamp = now
           return result

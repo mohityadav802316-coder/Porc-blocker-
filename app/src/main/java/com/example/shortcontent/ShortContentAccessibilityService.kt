@@ -466,116 +466,99 @@ class ShortContentAccessibilityService : AccessibilityService() {
       return
     }
 
-    val isSystemOrOwnApp = packageName == this.packageName ||
-      packageName.contains("launcher", ignoreCase = true) ||
-      packageName == "android"
+    val isOwnApp = packageName == this.packageName
+    if (isOwnApp) {
+      FocusBlockingOverlayManager.dismiss()
+      return
+    }
 
-    // Dismiss overlay if user returns to Life Tracker or Home Launcher
-    if (packageName == this.packageName || packageName.contains("launcher", ignoreCase = true)) {
+    // Dismiss overlay if user returns to Home Launcher
+    if (packageName.contains("launcher", ignoreCase = true)) {
       FocusBlockingOverlayManager.dismiss()
     }
 
-    // 00. ALWAYS-ON SECURITY PROTECTION (हमेशा-चालू सुरक्षा - Accessibility Settings, Device Admin, VPN, App Info / Uninstall, Multi-user / Guest)
-    // Runs even when Strict Lock is NOT counting down, unless Accountability PIN passed or 24-hr unlock window active
-    if (!isSystemOrOwnApp) {
-      val eventClassName = event.className?.toString() ?: ""
-      val isSettingsPkg = packageName == "com.android.settings" || packageName == "com.google.android.settings"
+    // 00. ALWAYS-ON SECURITY & UNINSTALL PROTECTION (हमेशा-चालू सुरक्षा - App Info, Uninstall Dialog, Accessibility Toggle, Device Admin)
+    // Instantly executes BACK and HOME (< 0.1s) whenever Peewee Block is targeted for uninstall or disabling.
+    val eventClassName = event.className?.toString() ?: ""
+    val isSettingsPkg = packageName == "com.android.settings" || packageName == "com.google.android.settings"
 
-      // Check 1: Multi-user / Guest / Second Space / Dual apps bypass screens
-      // Requirement 1 & 2: Detect in com.android.settings on BOTH TYPE_WINDOW_STATE_CHANGED and TYPE_WINDOW_CONTENT_CHANGED (with 300ms debounce).
-      // On Moto, settings screens use SubSettings class where TYPE_WINDOW_STATE_CHANGED does not fire, so we inspect visible node texts.
-      var shouldCheckMultiUser = true
-      if (isSettingsPkg && event.eventType == AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED) {
-        val now = System.currentTimeMillis()
-        if (now - lastSettingsContentChangeCheckTimestamp < 300L) {
-          shouldCheckMultiUser = false
-        } else {
-          lastSettingsContentChangeCheckTimestamp = now
-        }
+    // Check 1: Multi-user / Guest / Second Space / Dual apps bypass screens
+    var shouldCheckMultiUser = true
+    if (isSettingsPkg && event.eventType == AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED) {
+      val now = System.currentTimeMillis()
+      if (now - lastSettingsContentChangeCheckTimestamp < 300L) {
+        shouldCheckMultiUser = false
+      } else {
+        lastSettingsContentChangeCheckTimestamp = now
       }
+    }
 
-      if (shouldCheckMultiUser) {
-        val eventTextJoined = event.text?.joinToString(" ") ?: ""
-        val contentDesc = event.contentDescription?.toString() ?: ""
-        var combinedText = "$eventTextJoined $contentDesc"
-
-        // If package is Settings (e.g. Moto SubSettings / Settings), inspect full visible node hierarchy
-        if (isSettingsPkg) {
-          val hierarchyText = extractAllNodeTexts(rootInActiveWindow ?: event.source, maxDepth = 5, maxNodes = 40)
-          combinedText = "$combinedText $hierarchyText"
-        }
-
-        val detection = com.example.focus.MultiUserProtectionManager.evaluateScreenDetection(
-          context = this,
-          packageName = packageName,
-          className = eventClassName,
-          visibleText = combinedText
-        )
-
-        if (detection.isBlocked) {
-          blockMultiUserBypass(packageName, eventClassName, detection)
-          return
-        }
-      }
-
-      // Check 2: Peewee Block Tamper & Uninstall Protection (Accessibility toggle, Device Admin deactivate, App Info, Uninstall, VPN forget)
-      // Only blocks when Peewee Block identity (English, package, app name) is present on that screen.
-      // Settings main page, general Accessibility list, and other apps are NEVER blocked!
+    if (shouldCheckMultiUser && isSettingsPkg) {
       val eventTextJoined = event.text?.joinToString(" ") ?: ""
-      val contentDescJoined = event.contentDescription?.toString() ?: ""
-      val isInstallerPkg = packageName.contains("packageinstaller", ignoreCase = true) ||
-        packageName.contains("installer", ignoreCase = true) ||
-        packageName == "android"
-      val hierarchyForTamper = if (isSettingsPkg || isInstallerPkg) {
-        extractAllNodeTexts(rootInActiveWindow ?: event.source, maxDepth = 6, maxNodes = 50)
-      } else ""
-      val fullTamperText = "$eventTextJoined $contentDescJoined $hierarchyForTamper"
+      val contentDesc = event.contentDescription?.toString() ?: ""
+      val hierarchyText = extractAllNodeTexts(rootInActiveWindow ?: event.source, maxDepth = 5, maxNodes = 40)
+      val combinedText = "$eventTextJoined $contentDesc $hierarchyText"
 
-      val tamperResult = com.example.focus.AlwaysOnSecurityManager.evaluateTamperScreen(
+      val detection = com.example.focus.MultiUserProtectionManager.evaluateScreenDetection(
         context = this,
         packageName = packageName,
         className = eventClassName,
-        visibleText = fullTamperText
+        visibleText = combinedText
       )
 
-      if (tamperResult.isTamper) {
-        val now = System.currentTimeMillis()
-        if (now - lastTamperBlockedTimestamp < 800L) {
-          return
+      if (detection.isBlocked) {
+        blockMultiUserBypass(packageName, eventClassName, detection)
+        return
+      }
+    }
+
+    // Check 2: Peewee Block Tamper & Uninstall Protection (Accessibility toggle, Device Admin deactivate, App Info, Uninstall)
+    // Only triggers when Peewee Block's identity is on screen. Settings main page and other apps are NEVER blocked!
+    val eventTextJoined = event.text?.joinToString(" ") ?: ""
+    val contentDescJoined = event.contentDescription?.toString() ?: ""
+    val isInstallerOrSettings = isSettingsPkg ||
+      packageName.contains("packageinstaller", ignoreCase = true) ||
+      packageName.contains("installer", ignoreCase = true) ||
+      packageName == "android" ||
+      packageName.contains("launcher", ignoreCase = true)
+    val hierarchyForTamper = if (isInstallerOrSettings) {
+      extractAllNodeTexts(rootInActiveWindow ?: event.source, maxDepth = 6, maxNodes = 50)
+    } else ""
+    val fullTamperText = "$eventTextJoined $contentDescJoined $hierarchyForTamper"
+
+    val tamperResult = com.example.focus.AlwaysOnSecurityManager.evaluateTamperScreen(
+      context = this,
+      packageName = packageName,
+      className = eventClassName,
+      visibleText = fullTamperText
+    )
+
+    if (tamperResult.isTamper) {
+      Log.w("ShortContentService", "PEEWEE BLOCK TAMPER INTERCEPTED (< 0.1s): ${tamperResult.reason} ($packageName / $eventClassName)!")
+
+      // 1. Immediately dismiss popup dialog and drop to Home screen in < 0.1s
+      performGlobalAction(GLOBAL_ACTION_BACK)
+      performGlobalAction(GLOBAL_ACTION_HOME)
+
+      // 2. Launch Peewee Block home screen to show protected status
+      try {
+        val homeIntent = android.content.Intent(applicationContext, com.example.MainActivity::class.java).apply {
+          flags = android.content.Intent.FLAG_ACTIVITY_NEW_TASK or
+            android.content.Intent.FLAG_ACTIVITY_CLEAR_TOP or
+            android.content.Intent.FLAG_ACTIVITY_SINGLE_TOP
+          putExtra("INTERCEPTED_TAMPER_ATTEMPT", true)
+          putExtra("TAMPER_REASON", tamperResult.reason)
         }
+        startActivity(homeIntent)
+      } catch (_: Exception) {}
+
+      // 3. Debounce notification and toast only (so actions ALWAYS execute, but notifications don't flood)
+      val now = System.currentTimeMillis()
+      if (now - lastTamperBlockedTimestamp > 1200L) {
         lastTamperBlockedTimestamp = now
 
-        Log.w("ShortContentService", "PEEWEE BLOCK TAMPER INTERCEPTED: ${tamperResult.reason} ($packageName / $eventClassName)!")
-
-        // 1. Dismiss the system dialog / popup immediately
-        performGlobalAction(GLOBAL_ACTION_BACK)
-
-        // 2. Immediately return the user to the Peewee Block home screen
-        try {
-          val homeIntent = android.content.Intent(applicationContext, com.example.MainActivity::class.java).apply {
-            flags = android.content.Intent.FLAG_ACTIVITY_NEW_TASK or
-              android.content.Intent.FLAG_ACTIVITY_CLEAR_TOP or
-              android.content.Intent.FLAG_ACTIVITY_SINGLE_TOP
-            putExtra("INTERCEPTED_TAMPER_ATTEMPT", true)
-            putExtra("TAMPER_REASON", tamperResult.reason)
-          }
-          startActivity(homeIntent)
-        } catch (e: Exception) {
-          Log.w("ShortContentService", "Failed to launch Peewee Block home screen on tamper", e)
-          performGlobalAction(GLOBAL_ACTION_HOME)
-        }
-
         android.os.Handler(android.os.Looper.getMainLooper()).post {
-          android.widget.Toast.makeText(applicationContext, "Peewee Block: This setting is protected", android.widget.Toast.LENGTH_SHORT).show()
-        }
-
-        if (Settings.canDrawOverlays(this)) {
-          FocusBlockingOverlayManager.show(
-            context = this,
-            blockedPackage = packageName,
-            customTitle = "🛡️ Peewee Block Protected",
-            customNotice = "${tamperResult.reason} is protected while Peewee Block is active."
-          )
+          android.widget.Toast.makeText(applicationContext, "Peewee Block: Protection is active. Settings modification is locked.", android.widget.Toast.LENGTH_SHORT).show()
         }
 
         com.example.focus.ProtectionHealthManager.logHealthEvent(
@@ -585,15 +568,14 @@ class ShortContentAccessibilityService : AccessibilityService() {
           severity = "WARN"
         )
 
-        // Post high-priority alert on Security Alerts channel
         com.example.focus.StrictLockWatchdog.postAlertNotification(
           context = this,
           title = "🛡️ Peewee Block Security Alert",
           message = "${tamperResult.reason} was blocked.",
           intentAction = android.provider.Settings.ACTION_SETTINGS
         )
-        return
       }
+      return
     }
 
     // 0A. CRITICAL: STRICT LOCK & INCOGNITO EVASION DETECTION (Incognito / Private Tabs / Tab Switchers in all browsers)
@@ -623,6 +605,7 @@ class ShortContentAccessibilityService : AccessibilityService() {
     }
 
     // 0. STRICT LOCK: INSTANT ON-DEVICE ADULT CONTENT DETECTION (Never inspect our own app or system UI)
+    val isSystemOrOwnApp = isOwnApp || packageName == "com.android.systemui" || packageName == "android" || packageName.contains("launcher", ignoreCase = true)
     if (!isSystemOrOwnApp) {
       val adultResult = com.example.focus.AdultContentDetector.inspectEvent(this, event, rootInActiveWindow)
       if (adultResult != null && adultResult.isAdult) {
@@ -652,46 +635,10 @@ class ShortContentAccessibilityService : AccessibilityService() {
       }
     }
 
-    // 1. BROAD FOCUS MODE / STRICT LOCK BLOCKING CHECK (BlockSite-Style)
-    if (isStrict) {
-      // Requirement 3: Lock ke dauran sirf TYPE_WINDOW_STATE_CHANGED par package check ho (set lookup)
-      if (event.eventType == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED) {
-        if (!FocusModeManager.isPackageAllowed(this, packageName)) {
-          // Unallowed application opened during Strict Lock (e.g., Chrome)
-          StrictLockService.start(this)
-
-          if (Settings.canDrawOverlays(this)) {
-            // Requirement 1: Single-shot state machine (150ms calm fade-in, 900ms hold, GLOBAL_ACTION_HOME, 150ms fade-out, 1.5s cooldown)
-            FocusBlockingOverlayManager.showStrictLockSingleShot(
-              context = this,
-              blockedPackage = packageName,
-              onSendHome = {
-                performGlobalAction(GLOBAL_ACTION_HOME)
-              }
-            )
-          } else {
-            performGlobalAction(GLOBAL_ACTION_HOME)
-          }
-          return
-        }
-      }
-      // If package is allowed (Phone, Dialer, emergency call, launcher, SystemUI, keyboard, or whitelisted app),
-      // overlay is never shown, and floating pill stays quietly visible on top.
-    } else if (isFocus) {
-      if (!FocusModeManager.isPackageAllowed(this, packageName)) {
-        performGlobalAction(GLOBAL_ACTION_HOME)
-        if (Settings.canDrawOverlays(this)) {
-          FocusBlockingOverlayManager.show(this, packageName)
-        }
-        return
-      } else {
-        FocusBlockingOverlayManager.dismiss()
-      }
-    } else {
-      if (!trackerManager.isDailyLimitExceeded()) {
-        FocusBlockingOverlayManager.dismiss()
-      }
-    }
+    // 1. In Peewee Block, Strict Lock secures protection settings and website blocking.
+    // It intentionally allows normal apps (Chrome, productivity apps, social apps) to run freely,
+    // intercepting ONLY explicit adult content and tamper attempts directed at Peewee Block.
+    FocusBlockingOverlayManager.dismiss()
 
     // 2. SHORT CONTENT VIDEO TRACKING & BLOCKING (Instagram, YouTube, Facebook)
     val supportedPackages = ShortAppRegistry.getAllSupportedPackages()
@@ -742,27 +689,6 @@ class ShortContentAccessibilityService : AccessibilityService() {
       )
 
       if (detectionResult.confidence == DetectionConfidence.HIGH) {
-        // Daily Limit Blocking Check
-        if (trackerManager.isDailyLimitExceeded()) {
-          val limit = trackerManager.todaySummary.value?.dailyLimit ?: 20
-          val title = "🚨 Reels / Shorts सीमा समाप्त"
-          val notice = "दैनिक सीमा ($limit शॉर्ट्स) पूरी हो चुकी है। डिजिटल अनुशासन बनाए रखें।"
-
-          if (Settings.canDrawOverlays(this)) {
-            FocusBlockingOverlayManager.show(
-              context = this,
-              blockedPackage = packageName,
-              customTitle = title,
-              customNotice = notice,
-              isShortContentLimit = true
-            )
-          } else {
-            performGlobalAction(GLOBAL_ACTION_HOME)
-          }
-          trackerManager.onExitShortVideoScreen(now)
-          return
-        }
-
         // If not blocked, dismiss any old overlay and track current video
         FocusBlockingOverlayManager.dismiss()
 

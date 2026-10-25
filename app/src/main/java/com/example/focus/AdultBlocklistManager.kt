@@ -39,7 +39,7 @@ object AdultBlocklistManager {
     "nuvid", "sunporno", "porndoe", "slutload", "keezmovies", "gotporn",
     "porn300", "porndig", "pornktube", "pornhits", "xtube", "drdrporn",
     "palimpalim", "fuq", "lobstertube", "pornrabbit", "porngo", "badjojo",
-    "dump", "freeones", "twistys", "bangbros", "naughtyamerica", "realitykings",
+    "freeones", "twistys", "bangbros", "naughtyamerica", "realitykings",
     "evilangel", "wicked", "digitalplayground", "kink.com", "metart",
 
     // Indian & South Asian Explicit Portals & Stems
@@ -118,7 +118,20 @@ object AdultBlocklistManager {
 
     // Common non-adult words with overlapping letters
     "middlesex university", "essex county", "sussex county", "sextant",
-    "sextet", "prosecute", "intersection"
+    "sextet", "prosecute", "intersection",
+
+    // Legitimate developer, search, and knowledge platforms
+    "google", "google.com", "aistudio.google.com", "ai.google.dev", "gemini.google.com",
+    "github", "github.com", "stackoverflow", "stackoverflow.com", "wikipedia", "wikipedia.org",
+    "developer.android.com", "android.com", "openai.com", "microsoft.com", "apple.com"
+  )
+
+  val SAFE_DOMAINS_WHITELIST = hashSetOf(
+    "google.com", "google.co.in", "aistudio.google.com", "ai.google.dev",
+    "gemini.google.com", "googleapis.com", "gstatic.com", "android.com",
+    "developer.android.com", "github.com", "github.io", "githubusercontent.com",
+    "stackoverflow.com", "wikipedia.org", "microsoft.com", "apple.com",
+    "mozilla.org", "openai.com", "youtube.com", "cloudflare.com"
   )
 
   // =========================================================================
@@ -231,6 +244,11 @@ object AdultBlocklistManager {
   fun isDomainBlocked(context: Context, domain: String): Boolean {
     val clean = domain.trim().lowercase().removePrefix("www.")
     if (clean.isBlank()) return false
+
+    // Check safe platforms whitelist
+    for (safe in SAFE_DOMAINS_WHITELIST) {
+      if (clean == safe || clean.endsWith(".$safe")) return false
+    }
 
     // Check custom safe words
     val customSafe = getCustomSafeWords(context)

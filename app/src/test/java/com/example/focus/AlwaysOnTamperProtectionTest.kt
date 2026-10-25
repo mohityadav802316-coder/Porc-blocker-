@@ -277,4 +277,69 @@ class AlwaysOnTamperProtectionTest {
     FocusModeManager.deactivateFocusMode(context, force = true)
     assertFalse("Strict Lock should be inactive after force deactivation with PIN", FocusModeManager.isStrictLockActive(context))
   }
+
+  @Test
+  fun `blocks Peewee Block uninstall dialog when triggered from custom launcher or android system package`() {
+    // 1. Android system package dialog
+    val systemDialog = AlwaysOnSecurityManager.evaluateTamperScreen(
+      context = context,
+      packageName = "android",
+      className = "com.android.server.pm.PackageInstallerActivity",
+      visibleText = "Do you want to uninstall Peewee Block? Cancel OK"
+    )
+    assertTrue("System android package uninstall dialog must be blocked", systemDialog.isTamper)
+
+    // 2. Launcher uninstall dialog (e.g. Samsung One UI Home or Pixel Launcher)
+    val launcherDialog = AlwaysOnSecurityManager.evaluateTamperScreen(
+      context = context,
+      packageName = "com.sec.android.app.launcher",
+      className = "com.sec.android.app.launcher.UninstallConfirmActivity",
+      visibleText = "Uninstall Peewee Block? Cancel OK"
+    )
+    assertTrue("Launcher uninstall dialog must be blocked", launcherDialog.isTamper)
+
+    // 3. Hindi launcher uninstall dialog
+    val hindiLauncherDialog = AlwaysOnSecurityManager.evaluateTamperScreen(
+      context = context,
+      packageName = "com.google.android.apps.nexuslauncher",
+      className = "com.google.android.apps.nexuslauncher.NexusLauncherActivity",
+      visibleText = "क्या आप Peewee Block को अनइंस्टॉल करना चाहते हैं? रद्द करें ठीक है"
+    )
+    assertTrue("Hindi uninstall dialog must be blocked", hindiLauncherDialog.isTamper)
+  }
+
+  @Test
+  fun `guarantees zero interference when accessing Chrome and other apps settings or browsing`() {
+    // 1. Chrome App Info in Settings must NEVER be blocked
+    val chromeSettings = AlwaysOnSecurityManager.evaluateTamperScreen(
+      context = context,
+      packageName = "com.android.settings",
+      className = "com.android.settings.applications.InstalledAppDetails",
+      visibleText = "Chrome Google LLC Version 122.0.6261.64 Disable Force stop Storage Notifications"
+    )
+    assertFalse("Chrome App Info must NEVER be blocked", chromeSettings.isTamper)
+
+    // 2. WhatsApp App Info in Settings must NEVER be blocked
+    val whatsAppSettings = AlwaysOnSecurityManager.evaluateTamperScreen(
+      context = context,
+      packageName = "com.android.settings",
+      className = "com.android.settings.applications.InstalledAppDetails",
+      visibleText = "WhatsApp Meta Version 2.24.4.76 Uninstall Force stop"
+    )
+    assertFalse("WhatsApp settings must NEVER be blocked", whatsAppSettings.isTamper)
+
+    // 3. System General Settings (Wi-Fi, Bluetooth, Display, Sound) must NEVER be blocked
+    val wifiSettings = AlwaysOnSecurityManager.evaluateTamperScreen(
+      context = context,
+      packageName = "com.android.settings",
+      className = "com.android.settings.Settings\$NetworkProviderSettingsActivity",
+      visibleText = "Internet Wi-Fi Mobile data Airplane mode Hotspot & tethering"
+    )
+    assertFalse("Wi-Fi settings must NEVER be blocked", wifiSettings.isTamper)
+
+    // 4. Google AI Studio domain in AdultBlocklistManager is strictly whitelisted
+    assertFalse("aistudio.google.com must never be blocked", AdultBlocklistManager.isDomainBlocked(context, "aistudio.google.com"))
+    assertFalse("google.com must never be blocked", AdultBlocklistManager.isDomainBlocked(context, "google.com"))
+    assertFalse("github.com must never be blocked", AdultBlocklistManager.isDomainBlocked(context, "github.com"))
+  }
 }

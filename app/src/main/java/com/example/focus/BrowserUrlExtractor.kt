@@ -171,19 +171,18 @@ object BrowserUrlExtractor {
    * across Google Chrome, Brave, Firefox, Samsung Internet, Opera, Edge, etc.
    * Hindi, English, and Hinglish variants included.
    */
-  private val INCOGNITO_OR_TAB_KEYWORDS = listOf(
+  private val INCOGNITO_KEYWORDS = listOf(
     // English
-    "new incognito tab", "incognito tab", "private tab", "new private tab",
-    "switch tabs", "tab switcher", "open tabs", "close all tabs",
+    "new incognito tab", "incognito tab", "new private tab", "private tab",
     "inprivate tab", "secret mode", "turn on secret mode",
     // Hindi & Hinglish
-    "नया गुप्त टैब", "गुप्त टैब", "प्राइवेट टैब", "गुप्त मोड", "टैब", "नया टैब",
-    "secret tab", "incognito"
+    "नया गुप्त टैब", "गुप्त टैब", "प्राइवेट टैब", "गुप्त मोड", "सीक्रेट टैब"
   )
 
   /**
    * Checks whether the current accessibility event or node hierarchy represents
-   * an attempt to open Incognito/Private tabs or open the tab switcher in browsers.
+   * an attempt to open Incognito/Private tabs in browsers.
+   * Standard tab switching, new standard tabs, and web browsing are NEVER blocked!
    */
   fun isIncognitoOrTabAction(
     packageName: String,
@@ -194,29 +193,29 @@ object BrowserUrlExtractor {
     if (!isBrowser(packageName)) return false
 
     val textToCheck = "$eventText $contentDescription".lowercase()
-    for (kw in INCOGNITO_OR_TAB_KEYWORDS) {
+    for (kw in INCOGNITO_KEYWORDS) {
       if (textToCheck.contains(kw)) {
         return true
       }
     }
 
-    // Inspect child hierarchy for Incognito / Tab Switcher buttons or menus
+    // Inspect child hierarchy for explicit Incognito buttons or menus
     if (node != null) {
       val queue = ArrayDeque<AccessibilityNodeInfo>()
       queue.add(node)
       var visited = 0
-      while (queue.isNotEmpty() && visited < 35) {
+      while (queue.isNotEmpty() && visited < 30) {
         val cur = queue.removeFirst()
         visited++
 
         val viewId = cur.viewIdResourceName?.lowercase() ?: ""
-        if (viewId.contains("incognito") || viewId.contains("private") || viewId.contains("tab_switcher")) {
+        if (viewId.contains("incognito") || viewId.contains("inprivate") || viewId.contains("secret_mode")) {
           return true
         }
 
         val nodeText = cur.text?.toString()?.lowercase() ?: ""
         val nodeDesc = cur.contentDescription?.toString()?.lowercase() ?: ""
-        for (kw in INCOGNITO_OR_TAB_KEYWORDS) {
+        for (kw in INCOGNITO_KEYWORDS) {
           if (nodeText.contains(kw) || nodeDesc.contains(kw)) {
             return true
           }
